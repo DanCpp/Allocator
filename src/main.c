@@ -8,20 +8,19 @@
 
 int main() {
   #ifndef USE_STD_ALLOC
+  printf("use my allocator\n");
   create();
   atexit(delete);
   #endif
 
-  int* numbers = allocate(sizeof(int) * 4);
-
-  for (size_t i = 0; i < 4; i++) {
-    numbers[i] = (int) i;
+  int (*matrix)[3] = malloc(3 * 3 * sizeof(int));
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      matrix[i][j] = (i + 1) * (j + 1);
+      printf("%d * %d = %d\n", i + 1, j + 1, matrix[i][j]);
+    }
   }
 
-  for (size_t i = 0; i < 4; i++) {
-    printf("%d\n", numbers[i]);
-  }
-
-  free(numbers);
+  free(matrix);
   return 0;
 }

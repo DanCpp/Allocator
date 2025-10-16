@@ -12,3 +12,10 @@ TARGET = main
 
 $(TARGET): $(MAIN_SOURCE) $(ALLOC_SOURCE)
 	$(GCC) $(FLAGS) $(MAIN_SOURCE) $(ALLOC_SOURCE) -o $@
+
+std: $(MAIN_SOURCE) $(ALLOC_SOURCE)
+	$(GCC) -DUSE_STD_ALLOC $(FLAGS) $(MAIN_SOURCE) $(ALLOC_SOURCE) -o $@
+
+all: $(TARGET) std
+
+.PHONY: std all
