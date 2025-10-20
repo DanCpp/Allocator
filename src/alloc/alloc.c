@@ -54,9 +54,8 @@ typedef struct __sized__block__ {
 typedef struct {
   char* memory_start;
   char* memory_end;
-  char* current;
+  large_block* free;
   large_block* used;
-  large_block* freed;
   size_t memory_free;
 }large_arena;
 
@@ -86,11 +85,14 @@ static void init_large(large_arena* large) {
   *large = (large_arena) {
     .memory_start = alloc.memory + NUM_OF_ARENAS * SPECIAL_ARENA_SIZE,
     .memory_free = LARGE_ARENA_SIZE,
-    .current = alloc.memory + NUM_OF_ARENAS * SPECIAL_ARENA_SIZE,
     .used = NULL,
-    .freed = NULL,
+    .free = nc_malloc(sizeof(large_block)),
   };
-
+  *large->free = (large_block) {
+    .block_size = large->memory_free,
+    .memory_address = large->memory_start,
+    .next = NULL,
+  };
   large->memory_end = large->memory_start + large->memory_free;
 }
 
@@ -111,6 +113,11 @@ static void delete_large_blocks(large_arena large) {
   for (large_block* next; large.used; large.used = next) {
     next = large.used->next;
     free(large.used);
+  }
+
+  for (large_block* next; large.free; large.free = next) {
+    next = large.free->next;
+    free(large.free);
   }
 }
 
@@ -156,10 +163,41 @@ static void* allocate_in_special(size_t nmemb) {
 }
 
 static void* allocate_in_large(size_t nmemb) {
-  if (nmemb == 0)
+
+  // find first to emplace
+  large_block* first = alloc.large.free;
+  large_block* prev = NULL;
+  while (first && first->block_size < nmemb) {
+    prev = first;
+    first = first->next;
+  }
+
+  if (!first)
     return NULL;
-  return NULL;
-  //. . .
+
+  large_block* new_used = nc_malloc(sizeof(large_block));
+  new_used->block_size = nmemb;
+  new_used->memory_address = first->memory_address;
+  new_used->next = alloc.large.used;
+  alloc.large.used = new_used;
+
+
+  first->block_size -= nmemb;
+  first->memory_address += nmemb;
+
+  if (first->block_size == 0) {
+    // this is head
+    if (!prev) {
+      alloc.large.free = first->next;
+    } else {
+      prev->next = first->next;
+    }
+
+
+    free(first);
+  }
+
+  return new_used->memory_address;
 }
 
 void* allocate(size_t nmemb) {
