@@ -129,7 +129,7 @@ static arena* where_allocate(size_t nmemb) {
   assert(nmemb <= MAX_SIZE);
 
   arena* it = alloc.specials;
-  while (it->bs < nmemb && it < alloc.specials + NUM_OF_ARENAS) {
+  while (it < alloc.specials + NUM_OF_ARENAS && it->bs < nmemb) {
     it++;
   }
 
