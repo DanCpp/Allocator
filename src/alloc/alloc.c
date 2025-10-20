@@ -47,10 +47,6 @@ typedef struct __sized__block__ {
   struct __sized__block__* next;
 }large_block;
 
-// DONT FORGET:
-/*
-  DO THE CONCATINATION TWO OF NEIGHBOUR FREED BLOCKS
-*/
 typedef struct {
   char* memory_start;
   char* memory_end;
@@ -262,6 +258,10 @@ static void deallocate_in_special(arena* dealloc_arena, void* ptr) {
   dealloc_arena->freed = new_head;
 }
 
+static bool can_concat(large_block* first, large_block* second) {
+  return first->memory_address + first->block_size == second->memory_address;
+}
+
 static void deallocate_in_large(void* ptr) {
   assert(alloc.large.used);
   large_block* find_used = alloc.large.used;
@@ -274,9 +274,35 @@ static void deallocate_in_large(void* ptr) {
   if (prev)
     prev->next = find_used->next;
 
-  large_block* new_next = alloc.large.freed;
-  find_used->next = new_next;
-  alloc.large.freed = find_used;
+  find_used->next = NULL;
+  large_block* prev_free = NULL;
+  large_block* next_free = alloc.large.free;
+  while (next_free && next_free->memory_address < find_used->memory_address) {
+    prev_free = next_free;
+    next_free = next_free->next;
+  }
+
+  if (next_free && can_concat(find_used, next_free)) {
+    find_used->block_size += next_free->block_size;
+    find_used->next = next_free->next;
+    free(next_free);
+    next_free = NULL;
+  }
+
+  if (prev_free && can_concat(prev_free, find_used)) {
+    prev_free->block_size += find_used->block_size;
+    if (!next_free)
+      prev_free->next = find_used->next;
+    
+    free(find_used);
+    find_used = NULL;
+
+    return;
+  }
+
+  prev_free->next = find_used;
+  if (!next_free)
+    find_used->next = next_free;
 }
 
 void deallocate(void* ptr) {
