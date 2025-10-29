@@ -18,4 +18,9 @@ std: $(MAIN_SOURCE) $(ALLOC_SOURCE)
 
 all: $(TARGET) std
 
+
+clean: 
+	@rm -f main
+	@rm -f std
+
 .PHONY: std all

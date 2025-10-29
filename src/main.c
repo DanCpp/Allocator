@@ -13,14 +13,25 @@ int main() {
   atexit(delete);
   #endif
 
-  int (*matrix)[3] = malloc(3 * 3 * sizeof(int));
-  for (int i = 0; i < 3; i++) {
-    for (int j = 0; j < 3; j++) {
-      matrix[i][j] = (i + 1) * (j + 1);
-      printf("%d * %d = %d\n", i + 1, j + 1, matrix[i][j]);
+  int cap = 2;
+  int len = 0;
+  int* arr = malloc(2 * sizeof(int));
+  int n = 10;
+  for (int i = 0; i < n; i++) {
+    if (len == cap) {
+      cap <<= 1;
+      arr = realloc(arr, cap * sizeof(int));
     }
+
+    arr[len++] = i;
   }
 
-  free(matrix);
+  for (int i = 0; i < len; i++) {
+    printf("%d - %d\n", i, arr[i]);
+  }
+
+  printf("cap: %d\n", cap);
+
+  free(arr);
   return 0;
 }
