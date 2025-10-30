@@ -9,7 +9,6 @@
 #include <stdio.h>
 
 #define PTR_SIZE sizeof(char*)
-#define MEM_SIZE sizeof(size_t)
 #define MEGABYTE (1 << 20)
 #define MIN_SIZE 8
 #define MAX_SIZE 128
@@ -29,6 +28,18 @@ void* nc_malloc(size_t nmemb) {
   return ptr;
 }
 
+typedef struct __block__ {
+  struct __block__* next;
+  char* memory;
+  size_t block_size;
+}block_t;
+
+typedef struct {
+  char* memory;
+  size_t size;
+  block_t* unused;
+}large_arena_t;
+
 typedef struct {
   char* memory;
   char** head;
@@ -39,12 +50,13 @@ typedef struct {
 typedef struct {
   char* memory;
   special_arena_t s_arenas[SPECIAL_ARENAS];
+  large_arena_t large;
 }allocator_t;
 
 static allocator_t allocator;
 
 static void initialize_specials() {
-  uint32_t bs_next = MIN_SIZE;
+  size_t bs_next = MIN_SIZE;
   for (size_t index = 0; index < SPECIAL_ARENAS; index++, bs_next += 8) {
     special_arena_t* arena = &allocator.s_arenas[index];
     arena->bs = bs_next;
@@ -74,9 +86,22 @@ static void initialize_specials() {
   }
 }
 
+static void initialize_large() {
+  large_arena_t* large = &allocator.large;
+  large->memory = allocator.memory + SPECIAL_ARENAS * 10 * MEGABYTE;
+  large->size = 300 * MEGABYTE;
+  large->unused = nc_malloc(sizeof(block_t));
+  *large->unused = (block_t) {
+    .block_size = large->size,
+    .memory = large->memory,
+    .next = NULL,
+  };
+}
+
 void create() {
   allocator.memory = nc_malloc(460 * MEGABYTE);
   initialize_specials();
+  initialize_large();
 }
 
 void delete() {
@@ -97,12 +122,36 @@ static void* allocate_in_specials(size_t nmemb) {
   return ptr;
 }
 
+static void* allocate_in_large(size_t nmemb) {
+  block_t* avaliable = allocator.large.unused;
+  while (avaliable && nmemb + PTR_SIZE > avaliable->block_size) {
+    avaliable = avaliable->next;
+  }
+
+  if (!avaliable)
+    return NULL;
+
+  char* ptr = avaliable->memory + PTR_SIZE;
+  *(size_t*)(avaliable->memory) = nmemb;
+  avaliable->memory = ptr + nmemb;
+  avaliable->block_size -= (nmemb + PTR_SIZE);
+
+  return ptr;
+}
+
 static size_t get_size(void* ptr) {
   return *(size_t*)((char*)ptr - PTR_SIZE);
 }
 
 void* allocate(size_t nmemb) {
-  return allocate_in_specials(nmemb);
+  if (nmemb > 128)
+    return allocate_in_large(nmemb);
+
+  void* ptr = allocate_in_specials(nmemb);
+  if (!ptr)
+    return allocate_in_large(nmemb);
+  
+  return ptr;
 }
 
 void* allocate_filled(size_t n, size_t memb) {
@@ -137,11 +186,56 @@ static void deallocate_specials(void* ptr, size_t ptr_size) {
   arena->head = c_ptr;
 }
 
+static void deallocate_large(void* ptr, size_t ptr_size) {
+  block_t* next = allocator.large.unused;
+  block_t* prev = NULL;
+  while (next && next->memory > (char*)ptr) {
+    if (!next->next)
+      break;
+    if (next->next->memory < (char*) ptr) {
+      break;
+    }
+
+    prev = next;
+    next = next->next;
+  }
+
+  if (prev && (prev->memory + prev->block_size == (char*)ptr - PTR_SIZE)) {
+    prev->block_size += (PTR_SIZE + ptr_size);
+    if (prev->memory + prev->block_size == next->memory) {
+      prev->block_size += next->block_size;
+      prev->next = next->next;
+      free(next);
+    }
+
+    return;
+  }
+
+  if ((char*)ptr + ptr_size == next->memory) {
+    next->memory = (char*)ptr - PTR_SIZE;
+    next->block_size += (PTR_SIZE + ptr_size);
+
+    return;
+  }
+
+  block_t* new = nc_malloc(sizeof(block_t));
+  *new = (block_t) {
+    .memory = (char*)ptr - PTR_SIZE,
+    .block_size = PTR_SIZE + ptr_size,
+    .next = next,
+  };
+
+  if (prev)
+    prev->next = new;
+}
+
 void deallocate(void* ptr) {
   size_t ptr_size = get_size(ptr);
   // deallocation in large happened
-  if (ptr_size > 128)
+  if (ptr_size > 128) {
+    deallocate_large(ptr, ptr_size);
     return;
+  }
 
   deallocate_specials(ptr, ptr_size);
 }
