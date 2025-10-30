@@ -6,7 +6,6 @@
 #undef free
 
 #include <stdint.h>
-#include <stdio.h>
 
 #define PTR_SIZE sizeof(char*)
 #define MEGABYTE (1 << 20)
@@ -19,7 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-void* nc_malloc(size_t nmemb) {
+static void* nc_malloc(size_t nmemb) {
   void* ptr = malloc(nmemb);
   if (!ptr) {
     abort();
@@ -32,26 +31,26 @@ typedef struct __block__ {
   struct __block__* next;
   char* memory;
   size_t block_size;
-}block_t;
+} block_t;
 
 typedef struct {
   char* memory;
   size_t size;
   block_t* unused;
-}large_arena_t;
+} large_arena_t;
 
 typedef struct {
   char* memory;
   char** head;
   size_t bs;
   size_t size;
-}special_arena_t;
+} special_arena_t;
 
 typedef struct {
   char* memory;
   special_arena_t s_arenas[SPECIAL_ARENAS];
   large_arena_t large;
-}allocator_t;
+} allocator_t;
 
 static allocator_t allocator;
 
@@ -66,22 +65,19 @@ static void initialize_specials() {
     else
       arena->memory = allocator.memory;
 
-    arena->head = (char**)arena->memory;
+    arena->head = (char**) arena->memory;
     char** next = arena->head;
     char** prev = NULL;
-    while ((char*)next < arena->memory + arena->size) {
+    while ((char*) next < arena->memory + arena->size) {
       if (prev)
         *next = *prev + PTR_SIZE + arena->bs;
       else
-        *next = (char*)arena->head + PTR_SIZE + arena->bs;
+        *next = (char*) arena->head + PTR_SIZE + arena->bs;
 
       prev = next;
-      next = (char**)(*next);
+      next = (char**) (*next);
     }
     *prev = NULL;
-    if (bs_next == 40) {
-      printf("%p\n", *arena->head);
-    }
     ///
   }
 }
@@ -91,10 +87,10 @@ static void initialize_large() {
   large->memory = allocator.memory + SPECIAL_ARENAS * 10 * MEGABYTE;
   large->size = 300 * MEGABYTE;
   large->unused = nc_malloc(sizeof(block_t));
-  *large->unused = (block_t) {
-    .block_size = large->size,
-    .memory = large->memory,
-    .next = NULL,
+  *large->unused = (block_t){
+      .block_size = large->size,
+      .memory = large->memory,
+      .next = NULL,
   };
 }
 
@@ -106,6 +102,13 @@ void create() {
 
 void delete() {
   free(allocator.memory);
+  block_t* to_delete = allocator.large.unused;
+  block_t* next = to_delete->next;
+  while (to_delete) {
+    next = to_delete->next;
+    free(to_delete);
+    to_delete = next;
+  }
 }
 
 static void* allocate_in_specials(size_t nmemb) {
@@ -114,9 +117,9 @@ static void* allocate_in_specials(size_t nmemb) {
   if (*allocation_arena->head == NULL)
     return NULL;
 
-  char** new_head = (char**)(*allocation_arena->head);
-  *(size_t*)allocation_arena->head = allocation_arena->bs;  
-  void* ptr = ((char*)allocation_arena->head + PTR_SIZE);
+  char** new_head = (char**) (*allocation_arena->head);
+  *(size_t*) allocation_arena->head = allocation_arena->bs;
+  void* ptr = ((char*) allocation_arena->head + PTR_SIZE);
 
   allocation_arena->head = new_head;
   return ptr;
@@ -132,7 +135,7 @@ static void* allocate_in_large(size_t nmemb) {
     return NULL;
 
   char* ptr = avaliable->memory + PTR_SIZE;
-  *(size_t*)(avaliable->memory) = nmemb;
+  *(size_t*) (avaliable->memory) = nmemb;
   avaliable->memory = ptr + nmemb;
   avaliable->block_size -= (nmemb + PTR_SIZE);
 
@@ -140,7 +143,7 @@ static void* allocate_in_large(size_t nmemb) {
 }
 
 static size_t get_size(void* ptr) {
-  return *(size_t*)((char*)ptr - PTR_SIZE);
+  return *(size_t*) ((char*) ptr - PTR_SIZE);
 }
 
 void* allocate(size_t nmemb) {
@@ -150,7 +153,7 @@ void* allocate(size_t nmemb) {
   void* ptr = allocate_in_specials(nmemb);
   if (!ptr)
     return allocate_in_large(nmemb);
-  
+
   return ptr;
 }
 
@@ -169,8 +172,8 @@ void* reallocate(void* old, size_t nmemb) {
     return NULL;
 
 
-  char* c_old = (char*)old;
-  size_t new_copied_block = min(get_size(old), nmemb); 
+  char* c_old = (char*) old;
+  size_t new_copied_block = min(get_size(old), nmemb);
 
   memmove(c_new, c_old, new_copied_block);
 
@@ -180,16 +183,16 @@ void* reallocate(void* old, size_t nmemb) {
 
 static void deallocate_specials(void* ptr, size_t ptr_size) {
   special_arena_t* arena = &allocator.s_arenas[(ptr_size - 8) / 8];
-  
-  char** c_ptr = (char**)((char*)ptr - PTR_SIZE);
-  *c_ptr = (char*)arena->head;
+
+  char** c_ptr = (char**) ((char*) ptr - PTR_SIZE);
+  *c_ptr = (char*) arena->head;
   arena->head = c_ptr;
 }
 
 static void deallocate_large(void* ptr, size_t ptr_size) {
   block_t* next = allocator.large.unused;
   block_t* prev = NULL;
-  while (next && next->memory > (char*)ptr) {
+  while (next && next->memory > (char*) ptr) {
     if (!next->next)
       break;
     if (next->next->memory < (char*) ptr) {
@@ -200,7 +203,7 @@ static void deallocate_large(void* ptr, size_t ptr_size) {
     next = next->next;
   }
 
-  if (prev && (prev->memory + prev->block_size == (char*)ptr - PTR_SIZE)) {
+  if (prev && (prev->memory + prev->block_size == (char*) ptr - PTR_SIZE)) {
     prev->block_size += (PTR_SIZE + ptr_size);
     if (prev->memory + prev->block_size == next->memory) {
       prev->block_size += next->block_size;
@@ -211,22 +214,24 @@ static void deallocate_large(void* ptr, size_t ptr_size) {
     return;
   }
 
-  if ((char*)ptr + ptr_size == next->memory) {
-    next->memory = (char*)ptr - PTR_SIZE;
+  if ((char*) ptr + ptr_size == next->memory) {
+    next->memory = (char*) ptr - PTR_SIZE;
     next->block_size += (PTR_SIZE + ptr_size);
 
     return;
   }
 
   block_t* new = nc_malloc(sizeof(block_t));
-  *new = (block_t) {
-    .memory = (char*)ptr - PTR_SIZE,
-    .block_size = PTR_SIZE + ptr_size,
-    .next = next,
+  *new = (block_t){
+      .memory = (char*) ptr - PTR_SIZE,
+      .block_size = PTR_SIZE + ptr_size,
+      .next = next,
   };
 
   if (prev)
     prev->next = new;
+  else
+    allocator.large.unused = new;
 }
 
 void deallocate(void* ptr) {
