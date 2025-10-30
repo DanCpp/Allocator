@@ -15,6 +15,8 @@
 #define MAX_SIZE 128
 #define SPECIAL_ARENAS 16
 
+#define min(a, b) (a < b) ? a : b
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -42,7 +44,7 @@ typedef struct {
 static allocator_t allocator;
 
 static void initialize_specials() {
-  size_t bs_next = MIN_SIZE;
+  uint32_t bs_next = MIN_SIZE;
   for (size_t index = 0; index < SPECIAL_ARENAS; index++, bs_next += 8) {
     special_arena_t* arena = &allocator.s_arenas[index];
     arena->bs = bs_next;
@@ -55,7 +57,7 @@ static void initialize_specials() {
     arena->head = (char**)arena->memory;
     char** next = arena->head;
     char** prev = NULL;
-    while (next < arena->memory + arena->size) {
+    while ((char*)next < arena->memory + arena->size) {
       if (prev)
         *next = *prev + PTR_SIZE + arena->bs;
       else
@@ -95,8 +97,8 @@ static void* allocate_in_specials(size_t nmemb) {
   return ptr;
 }
 
-static int get_size(void* ptr) {
-  return *(int*)((char*)ptr - PTR_SIZE);
+static uint32_t get_size(void* ptr) {
+  return *(uint32_t*)((char*)ptr - PTR_SIZE);
 }
 
 void* allocate(size_t nmemb) {
@@ -119,7 +121,9 @@ void* reallocate(void* old, size_t nmemb) {
 
 
   char* c_old = (char*)old;
-  memmove(c_new, c_old, get_size(old));
+  uint32_t new_copied_block = min(get_size(old), (uint32_t) nmemb); 
+
+  memmove(c_new, c_old, new_copied_block);
 
   deallocate(old);
   return c_new;

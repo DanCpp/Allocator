@@ -20,7 +20,7 @@ int main() {
   for (int i = 0; i < n; i++) {
     if (len == cap) {
       cap <<= 1;
-      arr = realloc(arr, cap * sizeof(int));
+      arr = realloc(arr, (size_t)cap * sizeof(int));
     }
 
     arr[len++] = i;
