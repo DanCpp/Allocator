@@ -9,7 +9,7 @@
 #include <stdio.h>
 
 #define PTR_SIZE sizeof(char*)
-#define INT_SIZE sizeof(uint32_t)
+#define MEM_SIZE sizeof(size_t)
 #define MEGABYTE (1 << 20)
 #define MIN_SIZE 8
 #define MAX_SIZE 128
@@ -32,7 +32,7 @@ void* nc_malloc(size_t nmemb) {
 typedef struct {
   char* memory;
   char** head;
-  uint32_t bs;
+  size_t bs;
   size_t size;
 }special_arena_t;
 
@@ -90,15 +90,15 @@ static void* allocate_in_specials(size_t nmemb) {
     return NULL;
 
   char** new_head = (char**)(*allocation_arena->head);
-  *(uint32_t*)allocation_arena->head = allocation_arena->bs;  
+  *(size_t*)allocation_arena->head = allocation_arena->bs;  
   void* ptr = ((char*)allocation_arena->head + PTR_SIZE);
 
   allocation_arena->head = new_head;
   return ptr;
 }
 
-static uint32_t get_size(void* ptr) {
-  return *(uint32_t*)((char*)ptr - PTR_SIZE);
+static size_t get_size(void* ptr) {
+  return *(size_t*)((char*)ptr - PTR_SIZE);
 }
 
 void* allocate(size_t nmemb) {
@@ -121,7 +121,7 @@ void* reallocate(void* old, size_t nmemb) {
 
 
   char* c_old = (char*)old;
-  uint32_t new_copied_block = min(get_size(old), (uint32_t) nmemb); 
+  size_t new_copied_block = min(get_size(old), nmemb); 
 
   memmove(c_new, c_old, new_copied_block);
 

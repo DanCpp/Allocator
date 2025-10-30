@@ -13,24 +13,24 @@ int main() {
   atexit(delete);
   #endif
 
-  int cap = 2;
-  int len = 0;
+  size_t cap = 2;
+  size_t len = 0;
   int* arr = malloc(2 * sizeof(int));
-  int n = 10;
-  for (int i = 0; i < n; i++) {
+  size_t n = 10;
+  for (size_t i = 0; i < n; i++) {
     if (len == cap) {
       cap <<= 1;
-      arr = realloc(arr, (size_t)cap * sizeof(int));
+      arr = realloc(arr, cap * sizeof(int));
     }
 
-    arr[len++] = i;
+    arr[len++] = (int) i;
   }
 
-  for (int i = 0; i < len; i++) {
-    printf("%d - %d\n", i, arr[i]);
+  for (size_t i = 0; i < len; i++) {
+    printf("%zu - %d\n", i, arr[i]);
   }
 
-  printf("cap: %d\n", cap);
+  printf("cap: %zu\n", cap);
 
   free(arr);
   return 0;
