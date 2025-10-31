@@ -145,8 +145,7 @@ static size_t get_size(void* ptr) {
   if ((char*)ptr > allocator.large.memory)
     return *(size_t*) ((char*) ptr - PTR_SIZE);
 
-  char* c_ptr = (char*) ptr;
-  size_t arena_index = (ptr - allocator.memory) / (10 * MEGABYTE);
+  size_t arena_index = (size_t) ((char*) ptr - allocator.memory) / (10 * MEGABYTE);
   return allocator.s_arenas[arena_index].bs;
 }
 
