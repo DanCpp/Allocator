@@ -59,7 +59,7 @@ static void initialize_specials() {
   for (size_t index = 0; index < SPECIAL_ARENAS; index++, bs_next += 8) {
     special_arena_t* arena = &allocator.s_arenas[index];
     arena->bs = bs_next;
-    arena->size = 10 * MEGABYTE / (arena->bs + PTR_SIZE) * (arena->bs + PTR_SIZE);
+    arena->size = 10 * MEGABYTE;
     if (index)
       arena->memory = allocator.s_arenas[index - 1].memory + 10 * MEGABYTE;
     else
@@ -70,9 +70,9 @@ static void initialize_specials() {
     char** prev = NULL;
     while ((char*) next < arena->memory + arena->size) {
       if (prev)
-        *next = *prev + PTR_SIZE + arena->bs;
+        *next = *prev + arena->bs;
       else
-        *next = (char*) arena->head + PTR_SIZE + arena->bs;
+        *next = (char*) arena->head + arena->bs;
 
       prev = next;
       next = (char**) (*next);
@@ -118,8 +118,7 @@ static void* allocate_in_specials(size_t nmemb) {
     return NULL;
 
   char** new_head = (char**) (*allocation_arena->head);
-  *(size_t*) allocation_arena->head = allocation_arena->bs;
-  void* ptr = ((char*) allocation_arena->head + PTR_SIZE);
+  void* ptr = ((char*) allocation_arena->head);
 
   allocation_arena->head = new_head;
   return ptr;
@@ -143,7 +142,12 @@ static void* allocate_in_large(size_t nmemb) {
 }
 
 static size_t get_size(void* ptr) {
-  return *(size_t*) ((char*) ptr - PTR_SIZE);
+  if ((char*)ptr > allocator.large.memory)
+    return *(size_t*) ((char*) ptr - PTR_SIZE);
+
+  char* c_ptr = (char*) ptr;
+  size_t arena_index = (ptr - allocator.memory) / (10 * MEGABYTE);
+  return allocator.s_arenas[arena_index].bs;
 }
 
 void* allocate(size_t nmemb) {
@@ -184,7 +188,7 @@ void* reallocate(void* old, size_t nmemb) {
 static void deallocate_specials(void* ptr, size_t ptr_size) {
   special_arena_t* arena = &allocator.s_arenas[(ptr_size - 8) / 8];
 
-  char** c_ptr = (char**) ((char*) ptr - PTR_SIZE);
+  char** c_ptr = (char**) ((char*) ptr);
   *c_ptr = (char*) arena->head;
   arena->head = c_ptr;
 }
