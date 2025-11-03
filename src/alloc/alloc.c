@@ -15,6 +15,7 @@
 
 #define min(a, b) (a < b) ? a : b
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -142,7 +143,7 @@ static void* allocate_in_large(size_t nmemb) {
 }
 
 static size_t get_size(void* ptr) {
-  if ((char*)ptr > allocator.large.memory)
+  if ((char*) ptr > allocator.large.memory)
     return *(size_t*) ((char*) ptr - PTR_SIZE);
 
   size_t arena_index = (size_t) ((char*) ptr - allocator.memory) / (10 * MEGABYTE);
@@ -170,10 +171,12 @@ void* allocate_filled(size_t n, size_t memb) {
 }
 
 void* reallocate(void* old, size_t nmemb) {
+  if (!old)
+    return allocate(nmemb);
+
   char* c_new = allocate(nmemb);
   if (!c_new)
     return NULL;
-
 
   char* c_old = (char*) old;
   size_t new_copied_block = min(get_size(old), nmemb);
@@ -238,6 +241,9 @@ static void deallocate_large(void* ptr, size_t ptr_size) {
 }
 
 void deallocate(void* ptr) {
+  if (!ptr)
+    return;
+
   size_t ptr_size = get_size(ptr);
   // deallocation in large happened
   if (ptr_size > 128) {
