@@ -129,6 +129,7 @@ static void* allocate_in_specials(size_t nmemb) {
 }
 
 static void* allocate_in_large(size_t nmemb) {
+  nmemb = (nmemb / sizeof(size_t) + (nmemb % sizeof(size_t) ? 1 : 0)) * sizeof(size_t);
   block_t* avaliable = allocator.large.unused;
   while (avaliable && nmemb + PTR_SIZE > avaliable->block_size) {
     avaliable = avaliable->next;
